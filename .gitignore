@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+*.egg-info/
+dist/
+build/
+
+# Modelos grandes (opcional: se usar Git LFS, configure de outra forma)
+*.pt
+*.pth
+*.onnx
+*.engine
+
+# Arquivos do sistema operacional
+.DS_Store
+Thumbs.db
+
+# Configurações de IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log

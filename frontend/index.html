@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Detecção de EPI - MVP</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1e1e1e;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            margin-bottom: 10px;
+            font-size: 1.8rem;
+        }
+        .container {
+            position: relative;
+            max-width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            border: 2px solid #444;
+        }
+        video, canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            background: #000;
+        }
+        #canvas-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: #007acc;
+            color: white;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #005a9e;
+        }
+        button.stop {
+            background: #d32f2f;
+        }
+        button.stop:hover {
+            background: #b71c1c;
+        }
+        #status {
+            padding: 10px;
+            border-radius: 20px;
+            background: #333;
+            display: inline-block;
+        }
+        #alerts-panel {
+            margin-top: 20px;
+            padding: 15px;
+            background: #2d2d2d;
+            border-radius: 8px;
+            max-width: 640px;
+            width: 100%;
+            border-left: 5px solid #ff9800;
+        }
+        .alert-item {
+            color: #ffb74d;
+            margin: 5px 0;
+            animation: fadeIn 0.3s;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <h1>🧢 Detecção de EPI em Tempo Real</h1>
+    
+    <div class="container">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="canvas-overlay"></canvas>
+    </div>
+    
+    <div class="controls">
+        <button id="start-btn">▶ Iniciar Câmera</button>
+        <button id="stop-btn" class="stop" disabled>⏹ Parar</button>
+        <span id="status">⚪ Desconectado</span>
+    </div>
+    
+    <div id="alerts-panel">
+        <strong>🚨 Alertas em tempo real:</strong>
+        <div id="alerts-list"></div>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvasOverlay = document.getElementById('canvas-overlay');
+        const ctx = canvasOverlay.getContext('2d');
+        const startBtn = document.getElementById('start-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const statusSpan = document.getElementById('status');
+        const alertsList = document.getElementById('alerts-list');
+        
+        let ws = null;
+        let stream = null;
+        let isStreaming = false;
+        let sendInterval = null;
+        
+        // Ajusta tamanho do canvas quando o vídeo carregar
+        function resizeCanvas() {
+            canvasOverlay.width = video.videoWidth;
+            canvasOverlay.height = video.videoHeight;
+        }
+        
+        // Inicia captura da câmera
+        async function startCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: 'environment' // usa câmera traseira no celular
+                    },
+                    audio: false
+                });
+                video.srcObject = stream;
+                await video.play();
+                
+                video.addEventListener('loadedmetadata', () => {
+                    resizeCanvas();
+                });
+                
+                // Conecta WebSocket
+                connectWebSocket();
+                
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                isStreaming = true;
+                statusSpan.textContent = '🟢 Conectado e transmitindo';
+                statusSpan.style.background = '#2e7d32';
+                
+                // Envia frames a cada ~100ms
+                sendInterval = setInterval(sendFrame, 100);
+                
+            } catch (err) {
+                alert('Erro ao acessar a câmera: ' + err.message);
+                console.error(err);
+            }
+        }
+        
+        // Conecta ao servidor WebSocket
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                console.log('WebSocket conectado');
+                statusSpan.textContent = '🟡 Aguardando frames...';
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                drawDetections(data.detections);
+                showAlerts(data.alerts);
+                updateStats(data.total_persons, data.total_helmets);
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket erro:', error);
+                statusSpan.textContent = '🔴 Erro na conexão';
+            };
+            
+            ws.onclose = () => {
+                console.log('WebSocket fechado');
+                if (isStreaming) {
+                    statusSpan.textContent = '🟠 Reconectando...';
+                    // Tenta reconectar após 2 segundos
+                    setTimeout(() => {
+                        if (isStreaming) connectWebSocket();
+                    }, 2000);
+                }
+            };
+        }
+        
+        // Captura frame do vídeo e envia via WebSocket
+        function sendFrame() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            if (!video.videoWidth || !video.videoHeight) return;
+            
+            // Desenha o frame do vídeo em um canvas temporário para capturar como JPEG
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = video.videoWidth;
+            tempCanvas.height = video.videoHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+            
+            // Converte para base64 com qualidade 0.7 para economizar banda
+            const base64Image = tempCanvas.toDataURL('image/jpeg', 0.7);
+            
+            ws.send(base64Image);
+        }
+        
+        // Desenha as caixas de detecção no canvas overlay
+        function drawDetections(detections) {
+            resizeCanvas(); // garante tamanho correto
+            ctx.clearRect(0, 0, canvasOverlay.width, canvasOverlay.height);
+            
+            detections.forEach(det => {
+                const { x1, y1, x2, y2, confidence, class_name } = det;
+                
+                // Define cor baseada na classe
+                let color = '#00ff00'; // verde para pessoa
+                if (class_name === 'capacete') color = '#ffaa00';
+                else if (class_name === 'colete') color = '#00aaff';
+                else if (class_name === 'luva') color = '#ff00ff';
+                
+                // Desenha retângulo
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+                
+                // Desenha label
+                ctx.fillStyle = color;
+                ctx.font = 'bold 16px Arial';
+                ctx.fillText(
+                    `${class_name} ${(confidence * 100).toFixed(0)}%`,
+                    x1, y1 > 20 ? y1 - 5 : y1 + 20
+                );
+            });
+        }
+        
+        // Exibe alertas na tela
+        function showAlerts(alerts) {
+            alertsList.innerHTML = '';
+            if (alerts.length === 0) {
+                alertsList.innerHTML = '<div style="color: #aaa;">✅ Nenhum alerta no momento</div>';
+                return;
+            }
+            
+            alerts.forEach(alert => {
+                const div = document.createElement('div');
+                div.className = 'alert-item';
+                div.textContent = alert.message;
+                alertsList.appendChild(div);
+            });
+            
+            // Se houver alerta, também podemos piscar o título
+            if (alerts.length > 0) {
+                document.title = '⚠️ ALERTA EPI ⚠️';
+                setTimeout(() => { document.title = 'Detecção de EPI - MVP'; }, 2000);
+            }
+        }
+        
+        function updateStats(persons, helmets) {
+            // Você pode adicionar contadores se quiser
+        }
+        
+        // Para a câmera e desconecta
+        function stopCamera() {
+            isStreaming = false;
+            
+            if (sendInterval) {
+                clearInterval(sendInterval);
+                sendInterval = null;
+            }
+            
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+                video.srcObject = null;
+            }
+            
+            ctx.clearRect(0, 0, canvasOverlay.width, canvasOverlay.height);
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            statusSpan.textContent = '⚪ Desconectado';
+            statusSpan.style.background = '#333';
+            alertsList.innerHTML = '<div style="color: #aaa;">Sistema parado</div>';
+            document.title = 'Detecção de EPI - MVP';
+        }
+        
+        // Event listeners
+        startBtn.addEventListener('click', startCamera);
+        stopBtn.addEventListener('click', stopCamera);
+        
+        // Redimensiona quando a janela muda
+        window.addEventListener('resize', () => {
+            if (video.videoWidth) resizeCanvas();
+        });
+        
+        // Ao sair da página, para tudo
+        window.addEventListener('beforeunload', () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            if (ws) ws.close();
+        });
+    </script>
+</body>
+</html>
