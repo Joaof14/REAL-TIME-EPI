@@ -55,7 +55,7 @@ async def websocket_endpoint(websocket: WebSocket):
             
             detections = []
             has_person = False
-            has_helmet = False
+            has_mask = False
 
             for box in results.boxes:
                 coords = box.xyxy[0].tolist()
@@ -71,15 +71,14 @@ async def websocket_endpoint(websocket: WebSocket):
                 })
                 
                 # Lógica de detecção para o alerta (ajuste os nomes das classes se forem diferentes)
-                if label == 'person' or label == 'pessoa': has_person = True
-                if label == 'helmet' or label == 'capacete': has_helmet = True
-
+                if label == 'person': has_person = True
+                if label == 'cell phone': has_mask = True # O celular vai "fingir" que é uma mascara
             # Lógica de Alerta Consecutivo
             alerts = []
-            if has_person and not has_helmet:
+            if has_person and not has_mask:
                 violation_counter += 1
                 if violation_counter >= ALERT_THRESHOLD_FRAMES:
-                    alerts.append({"message": "🚨 ALERTA: Colaborador sem capacete detectado!"})
+                    alerts.append({"message": "🚨 ALERTA: Pessoa sem máscara detectada!"})
             else:
                 # Diminui o contador gradualmente se a situação se normalizar
                 violation_counter = max(0, violation_counter - 1)

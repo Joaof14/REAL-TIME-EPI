@@ -122,7 +122,7 @@
         function draw(detections) {
             ctx.clearRect(0, 0, canvasOverlay.width, canvasOverlay.height);
             detections.forEach(d => {
-                const color = d.class_name.includes('helmet') || d.class_name.includes('capacete') ? '#4caf50' : '#2196f3';
+                const color = d.class_name.includes('mask') || d.class_name.includes('De máscara') ? '#4caf50' : '#2196f3';
                 ctx.strokeStyle = color;
                 ctx.lineWidth = 3;
                 ctx.strokeRect(d.x1, d.y1, d.x2 - d.x1, d.y2 - d.y1);
