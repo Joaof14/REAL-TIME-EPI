@@ -2,115 +2,97 @@ import base64
 import cv2
 import numpy as np
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from ultralytics import YOLO
-import asyncio
-import json
 from pathlib import Path
+import json
 
 app = FastAPI()
 
-# Monta a pasta do frontend para servir o index.html
-frontend_path = Path(__file__).parent.parent / "frontend"
-app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
+# Caminhos baseados na sua estrutura
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_PATH = BASE_DIR / "best.pt"
+HTML_PATH = BASE_DIR.parent / "frontend" / "index.html"
 
-# Carrega o modelo YOLO (pode ser o nano para teste, ou seu modelo customizado)
-# Se você tem um modelo treinado para EPI, substitua pelo caminho do best.pt
-MODEL_PATH = "best.pt" if Path("best.pt").exists() else "yolov8n.pt"
-model = YOLO(MODEL_PATH)
-print(f"✅ Modelo carregado: {MODEL_PATH}")
+# Carrega o seu modelo treinado. Se não achar, usa o nano para não quebrar.
+if MODEL_PATH.exists():
+    model = YOLO(str(MODEL_PATH))
+    print(f"✅ Modelo customizado carregado: {MODEL_PATH}")
+else:
+    model = YOLO("yolov8n.pt")
+    print("⚠️ best.pt não encontrado no backend/. Usando yolov8n.pt")
 
-# Mapeamento de classes (ajuste conforme seu dataset)
-# Exemplo para modelo COCO (yolov8n): pessoa é classe 0
-# Para modelo de EPI, as classes podem ser: 0=capacete, 1=colete, 2=pessoa, etc.
-CLASS_NAMES = {
-    0: "pessoa",
-    1: "capacete",
-    2: "colete",
-    3: "luva"
-}
-# Se estiver usando o modelo padrão COCO, vamos focar em detectar pessoa
-# e simular a lógica de EPI (você pode substituir por seu modelo treinado)
+# Configurações de Alerta (Buffer de 10 frames para evitar falsos positivos)
+ALERT_THRESHOLD_FRAMES = 10  
+violation_counter = 0
 
 @app.get("/")
 async def get():
-    """Serve a página HTML do frontend"""
-    html_file = frontend_path / "index.html"
-    return HTMLResponse(content=html_file.read_text(encoding="utf-8"))
+    if HTML_PATH.exists():
+        with open(HTML_PATH, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse(content="<h1>Erro: index.html não encontrado no frontend/</h1>", status_code=404)
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    global violation_counter
     await websocket.accept()
-    print("🟢 Cliente conectado")
     
     try:
         while True:
-            # Recebe o frame como base64 (enviado pelo frontend)
             data = await websocket.receive_text()
             
-            # Decodifica a imagem
-            # O frontend envia no formato "data:image/jpeg;base64,...."
-            header, encoded = data.split(",", 1)
-            img_bytes = base64.b64decode(encoded)
-            np_arr = np.frombuffer(img_bytes, np.uint8)
-            frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-            
-            if frame is None:
+            # Decodificação da imagem vinda do navegador
+            try:
+                encoded_data = data.split(",")[1]
+                nparr = np.frombuffer(base64.b64decode(encoded_data), np.uint8)
+                frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            except Exception:
                 continue
-            
-            # Executa a detecção
+
+            # Inferência (Ajuste o 'conf' conforme necessário para sua precisão)
             results = model(frame, conf=0.5, verbose=False)[0]
             
-            # Prepara dados para enviar ao frontend
             detections = []
+            has_person = False
+            has_helmet = False
+
             for box in results.boxes:
-                x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
-                confidence = float(box.conf[0])
+                coords = box.xyxy[0].tolist()
+                conf = float(box.conf[0])
                 class_id = int(box.cls[0])
-                class_name = CLASS_NAMES.get(class_id, f"classe_{class_id}")
+                label = model.names[class_id]
                 
                 detections.append({
-                    "x1": x1, "y1": y1, "x2": x2, "y2": y2,
-                    "confidence": confidence,
-                    "class_id": class_id,
-                    "class_name": class_name
+                    "x1": int(coords[0]), "y1": int(coords[1]),
+                    "x2": int(coords[2]), "y2": int(coords[3]),
+                    "confidence": conf,
+                    "class_name": label
                 })
-            
-            # Lógica simples de alerta: se detectar pessoa mas não capacete na mesma região
-            # (ajuste conforme sua necessidade)
-            persons = [d for d in detections if d["class_name"] == "pessoa"]
-            helmets = [d for d in detections if d["class_name"] == "capacete"]
-            
+                
+                # Lógica de detecção para o alerta (ajuste os nomes das classes se forem diferentes)
+                if label == 'person' or label == 'pessoa': has_person = True
+                if label == 'helmet' or label == 'capacete': has_helmet = True
+
+            # Lógica de Alerta Consecutivo
             alerts = []
-            for person in persons:
-                # Verifica se há algum capacete com sobreposição significativa
-                has_helmet = False
-                for helmet in helmets:
-                    # Calcula interseção simples (pode melhorar com IoU)
-                    if (helmet["x1"] < person["x2"] and helmet["x2"] > person["x1"] and
-                        helmet["y1"] < person["y2"] and helmet["y2"] > person["y1"]):
-                        has_helmet = True
-                        break
-                if not has_helmet:
-                    alerts.append({
-                        "person_box": person,
-                        "message": "⚠️ Pessoa sem capacete detectada!"
-                    })
-            
-            # Envia resposta JSON com detecções e alertas
+            if has_person and not has_helmet:
+                violation_counter += 1
+                if violation_counter >= ALERT_THRESHOLD_FRAMES:
+                    alerts.append({"message": "🚨 ALERTA: Colaborador sem capacete detectado!"})
+            else:
+                # Diminui o contador gradualmente se a situação se normalizar
+                violation_counter = max(0, violation_counter - 1)
+
             await websocket.send_json({
                 "detections": detections,
-                "alerts": alerts,
-                "total_persons": len(persons),
-                "total_helmets": len(helmets)
+                "alerts": alerts
             })
-            
+
     except WebSocketDisconnect:
-        print("🔴 Cliente desconectado")
+        violation_counter = 0
     except Exception as e:
-        print(f"❌ Erro: {e}")
-        await websocket.close()
+        print(f"Erro no WebSocket: {e}")
 
 if __name__ == "__main__":
     import uvicorn
