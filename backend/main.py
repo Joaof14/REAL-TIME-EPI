@@ -9,12 +9,18 @@ import json
 
 app = FastAPI()
 
-# Caminhos baseados na sua estrutura
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "best.pt"
 HTML_PATH = BASE_DIR.parent / "frontend" / "index.html"
 
-# Carrega o seu modelo treinado. Se não achar, usa o nano para não quebrar.
+
+CLASS_NAMES = {
+    0: "Pessoa sem máscara",
+    1: "Pessoa com máscara"
+}
+
+
+# Carrega o modelo treinado. Se não achar, usa o nano para não quebrar.
 if MODEL_PATH.exists():
     model = YOLO(str(MODEL_PATH))
     print(f"✅ Modelo customizado carregado: {MODEL_PATH}")
@@ -42,7 +48,6 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             data = await websocket.receive_text()
             
-            # Decodificação da imagem vinda do navegador
             try:
                 encoded_data = data.split(",")[1]
                 nparr = np.frombuffer(base64.b64decode(encoded_data), np.uint8)
@@ -50,19 +55,20 @@ async def websocket_endpoint(websocket: WebSocket):
             except Exception:
                 continue
 
-            # Inferência (Ajuste o 'conf' conforme necessário para sua precisão)
-            results = model(frame, conf=0.5, verbose=False)[0]
+    
+            results = model(frame, conf=0.50, verbose=False)[0]
             
             detections = []
-            has_person = False
-            has_mask = False
+            alerta_ativado = False 
 
             for box in results.boxes:
                 coords = box.xyxy[0].tolist()
                 conf = float(box.conf[0])
                 class_id = int(box.cls[0])
-                label = model.names[class_id]
                 
+            
+                label = CLASS_NAMES.get(class_id, model.names.get(class_id, "Desconhecido"))
+    
                 detections.append({
                     "x1": int(coords[0]), "y1": int(coords[1]),
                     "x2": int(coords[2]), "y2": int(coords[3]),
@@ -70,12 +76,16 @@ async def websocket_endpoint(websocket: WebSocket):
                     "class_name": label
                 })
                 
-                # Lógica de detecção para o alerta (ajuste os nomes das classes se forem diferentes)
-                if label == 'person': has_person = True
-                if label == 'cell phone': has_mask = True # O celular vai "fingir" que é uma mascara
+                # --- LÓGICA DE ALERTA CORRIGIDA ---
+                if label == "Pessoa com máscara":
+                    alerta_ativado = False
+                else:
+                    alerta_ativado = True
+                # ----------------------------------
+
             # Lógica de Alerta Consecutivo
             alerts = []
-            if has_person and not has_mask:
+            if alerta_ativado:
                 violation_counter += 1
                 if violation_counter >= ALERT_THRESHOLD_FRAMES:
                     alerts.append({"message": "🚨 ALERTA: Pessoa sem máscara detectada!"})
