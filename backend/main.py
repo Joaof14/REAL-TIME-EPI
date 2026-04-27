@@ -15,7 +15,7 @@ HTML_PATH = BASE_DIR.parent / "frontend" / "index.html"
 
 
 CLASS_NAMES = {
-    0: "Pessoa sem máscara",
+    0: "Uso incorreto de máscara",
     1: "Pessoa com máscara"
 }
 
