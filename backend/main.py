@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse
 from ultralytics import YOLO
 from pathlib import Path
 import json
+import time
 
 app = FastAPI()
 
@@ -28,9 +29,9 @@ else:
     model = YOLO("yolov8n.pt")
     print("⚠️ best.pt não encontrado no backend/. Usando yolov8n.pt")
 
-# Configurações de Alerta (Buffer de 10 frames para evitar falsos positivos)
-ALERT_THRESHOLD_FRAMES = 10  
-violation_counter = 0
+# Configurações de Alerta (Buffer de  frames para evitar falsos positivos)
+ 
+
 
 @app.get("/")
 async def get():
@@ -41,7 +42,9 @@ async def get():
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    global violation_counter
+    ALERT_THRESHOLD_FRAMES = 4 
+    violation_counter = 0
+    last_alert_time = 0
     await websocket.accept()
     
     try:
@@ -85,10 +88,18 @@ async def websocket_endpoint(websocket: WebSocket):
 
             # Lógica de Alerta Consecutivo
             alerts = []
+            current_time = time.time()
             if alerta_ativado:
                 violation_counter += 1
                 if violation_counter >= ALERT_THRESHOLD_FRAMES:
-                    alerts.append({"message": "🚨 ALERTA: Pessoa sem máscara detectada!"})
+                    if current_time - last_alert_time >= 1.0:
+                        timestamp_str = time.strftime('%H:%M:%S', time.localtime(current_time))
+                        alerts.append({
+                            "message": "🚨 ALERTA: Pessoa sem máscara detectada!",
+                            "timestamp": timestamp_str  # <--- Enviando a hora do backend!
+                        })
+                        last_alert_time = current_time # Atualiza o tempo do último alerta
+                    
             else:
                 # Diminui o contador gradualmente se a situação se normalizar
                 violation_counter = max(0, violation_counter - 1)

@@ -105,10 +105,16 @@
                 sendInterval = setInterval(sendFrame, 150);
             };
             ws.onmessage = (e) => {
-                const data = JSON.parse(e.data);
-                draw(data.detections);
-                if (data.alerts.length > 0) logAlert(data.alerts[0].message);
-            };
+            const data = JSON.parse(e.data);
+            draw(data.detections);
+            
+            if (data.alerts && data.alerts.length > 0) {
+                // Passa tanto a mensagem quanto o timestamp do backend
+                data.alerts.forEach(alert => {
+                    logAlert(alert.message, alert.timestamp);
+                });
+            }
+        };
             ws.onclose = () => { statusSpan.textContent = "⚪ Desconectado"; clearInterval(sendInterval); };
         }
 
@@ -135,10 +141,14 @@
             });
         }
 
-        function logAlert(msg) {
+        function logAlert(msg, timestamp) {
             const div = document.createElement('div');
             div.className = 'alert-item';
-            div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            
+            // Se por algum motivo não vier o timestamp do backend, ele faz o fallback para o horário local
+            const timeString = timestamp || new Date().toLocaleTimeString();
+            
+            div.textContent = `[${timeString}] ${msg}`;
             alertsList.prepend(div);
             if (alertsList.children.length > 5) alertsList.lastChild.remove();
         }
