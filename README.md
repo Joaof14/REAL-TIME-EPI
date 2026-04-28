@@ -1,7 +1,7 @@
 # 😷 EPI-Watch: Detecção de Máscaras de Proteção em Tempo Real
 
-**Status:** MVP Funcional (Modelo em Treinamento)  
-**Objetivo:** Monitoramento inteligente e de baixo custo do uso correto de máscaras faciais (EPI) utilizando Visão Computacional.
+**Status:** MVP funcional — integração de modelo disponível no Kaggle (referência a ser adicionada)  
+**Objetivo:** Monitoramento inteligente e de baixo custo do uso correto de máscaras faciais (EPI) utilizando Visão Computacional, com foco em comunicação WebSocket de baixa latência.
 
 ---
 
@@ -9,7 +9,7 @@
 
 O **EPI-Watch** é um sistema de monitoramento em tempo real que utiliza uma câmera comum (webcam ou smartphone) para detectar a conformidade no uso de máscaras de proteção. A arquitetura é baseada em comunicação WebSocket de baixa latência e inferência com modelos YOLOv8.
 
-**Estado Atual (MVP):** O sistema está **totalmente funcional** com um modelo provisório (`yolov8n.pt`) e uma lógica de alerta simulada para fins de demonstração e validação da infraestrutura. O modelo definitivo, especializado na detecção de máscaras faciais, está sendo treinado pela equipe e será integrado em breve.
+**Estado Atual (MVP):** O sistema opera com um modelo pré-treinado obtido no Kaggle; a equipe integra e valida o modelo, mas não reivindica autoria. O backend carrega o peso (`best.pt`) e realiza inferência em tempo real, classificando estados como `Com Máscara`, `Sem Máscara` e `Máscara Incorreta`. Insira a referência do Kaggle em `docs/` ou neste README para fins de atribuição.
 
 ---
 
@@ -17,10 +17,8 @@ O **EPI-Watch** é um sistema de monitoramento em tempo real que utiliza uma câ
 
 - **Captura de vídeo em tempo real** diretamente do navegador (desktop ou mobile).
 - **Comunicação WebSocket** para envio de frames e recebimento de resultados de IA.
-- **Detecção de objetos genérica** (modelo YOLOv8n pré-treinado no COCO).
-- **Lógica de alerta simulada** para teste do fluxo:
-  - A presença de um **celular** no frame é interpretada como "uso de máscara".
-  - A ausência do celular (com uma pessoa visível) dispara um alerta após 10 frames consecutivos.
+- **Detecção de máscaras**: inferência realizada com modelo obtido no Kaggle (arquivo de pesos em `backend/`).
+- **Lógica de alerta baseada em detecções reais**: quando o sistema identifica `Sem Máscara` por N frames consecutivos, um alerta é registrado e exibido no painel. O pipeline é desenhado para minimizar falsos positivos por buffer de frames.
 - **Visualização clara** com bounding boxes e labels sobrepostas ao vídeo.
 - **Painel de histórico** dos últimos alertas.
 
@@ -33,8 +31,8 @@ O **EPI-Watch** é um sistema de monitoramento em tempo real que utiliza uma câ
 | **Backend** | Python, FastAPI, Uvicorn, OpenCV, Ultralytics YOLOv8 |
 | **Frontend** | HTML5, CSS3, JavaScript (ES6), WebSocket API, Canvas API |
 | **Comunicação** | WebSockets |
-| **Modelo de IA (atual)** | YOLOv8n (COCO) – fallback provisório |
-| **Modelo de IA (em treinamento)** | YOLOv8n customizado para máscaras (via Google Colab) |
+| **Modelo de IA (origem)** | Modelo pré-treinado obtido no Kaggle — inserir referência em `docs/` |
+| **Modelo de IA (observação)** | A equipe integra e valida o modelo; autoria do modelo não é do projeto. |
 
 ---
 
@@ -80,19 +78,30 @@ Com o servidor rodando, abra o navegador e acesse http://localhost:8000.
 Para acessar de um celular na mesma rede Wi-Fi, use o IP local do computador (ex: http://192.168.1.100:8000).
 
 
-### Como Testar o Funcionamento Atual (Simulação com Celular)
+### Como Testar o Funcionamento Atual
 
 - Clique em "Ligar Câmera" e permita o acesso.
 
-- Enquadre uma pessoa no vídeo. Uma caixa azul com o label person aparecerá.
+- Enquadre uma pessoa no vídeo; as detecções (bounding boxes) aparecerão sobre o feed com labels claros.
 
-- Segure um celular visível no frame. Uma caixa com o label cell phone será desenhada.
+- Experimente três cenários principais: `Com Máscara`, `Sem Máscara` e `Máscara Incorreta`.
 
-- Remova o celular do frame. Após cerca de 1,5 segundo, o alerta "🚨 ALERTA: Pessoa sem máscara detectada!" será exibido no painel.
+- Quando o modelo classificar `Sem Máscara` por vários frames consecutivos (parâmetro configurável no backend), um alerta será registrado e exibido no painel de histórico.
 
-- Retorne o celular ao frame. O alerta deixará de ser emitido.
+- Para ajuste fino, edite o parâmetro de tolerância de frames no arquivo `backend/main.py` e reinicie o servidor.
 
-- Interpretação: Nesta simulação, a detecção do celular funciona como um proxy para o uso correto da máscara. Isso permite validar toda a pipeline de comunicação, lógica de buffer e exibição de alertas sem depender do modelo final.
+**Comandos rápidos para rodar localmente:**
+
+```bash
+cd backend
+source venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Abra o navegador em http://localhost:8000 e permita o uso da câmera. Teste com variações de iluminação e ângulo para validar robustez do modelo.
+
+**Atribuição do modelo:** por favor adicione no repositório (ex.: `docs/kaggle_model_reference.md`) o link e metadados do modelo/dataset usado do Kaggle para cumprir requisitos de licença e reprodução.
 
 ### Próximos Passos: 
 Ler as opções descrita na pasta docs.
