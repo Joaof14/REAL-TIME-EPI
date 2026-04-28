@@ -14,7 +14,6 @@ dist/
 build/
 
 # Modelos grandes (opcional: se usar Git LFS, configure de outra forma)
-*.pt
 *.pth
 *.onnx
 *.engine
