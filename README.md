@@ -42,7 +42,7 @@ A interface solicitará permissão para usar a câmera. Clique em "Ligar Câmera
 - Qualidade do JPEG no `captureCanvas.toDataURL('image/jpeg', 0.6)` controla compressão e banda (0.6 atual).
 
 ## Referência do modelo
-O peso `best.pt` utilizado neste repositório tem origem em um trabalho disponível no Kaggle (usado como base pelo projeto). Referência: https://www.kaggle.com/code/cubeai/facemask-detection-with-yolov8/output
+O peso `best.pt` utilizado neste repositório foi gerado usando o notebook do Kaggle como fluxo de trabalho, mas os dados utilizados no treino foram exportados do Roboflow: https://universe.roboflow.com/facemaskdetection-zvlot/face-mask-y1vsd . Referência do notebook (procedimento): https://www.kaggle.com/code/cubeai/facemask-detection-with-yolov8/output
 
 Considere consultar `docs/tech-report.md` para detalhes sobre versões de bibliotecas e implicações de licenciamento.
 
@@ -55,11 +55,13 @@ Considere consultar `docs/tech-report.md` para detalhes sobre versões de biblio
 - frontend/
 	- `index.html` — interface web
 - docs/
-	- `tech-report.md`, `project-report.md` (novos)
+	- `technologies-report.md`, `project-report.md` 
+- notebooks/
+	- `mask-detection-notebook`
 
 ## Notas rápidas de operação e segurança
 - Para produção, rode o serviço em servidor com GPU (se disponível) ou configure aceleração por TensorRT/ONNX.
 - Proteja o endpoint WebSocket com autenticação ou deploy via rede interna apenas.
 
 ---
-Para detalhes completos sobre cada tecnologia, limiares e lógica de alertas, veja: [docs/tech-report.md](docs/tech-report.md) e [docs/project-report.md](docs/project-report.md).
+ Um exemplar do notebook usado para treinar/gerar `best.pt` (ajustado para o dataset exportado do Roboflow) pode ser encontrado em [notebooks/mask-detection-notebook.ipynb](notebooks/mask-detection-notebook.ipynb).

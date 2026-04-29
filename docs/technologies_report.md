@@ -8,9 +8,9 @@ Este documento unifica os relatórios técnicos existentes e descreve escolhas t
 - Inferência: Ultralytics YOLOv8 (`ultralytics`) — carrega `backend/best.pt` quando presente, com fallback para `yolov8n.pt`.
 - Frontend: cliente web em `frontend/index.html` captura câmera, envia frames via WebSocket em DataURL JPEG e desenha bounding boxes com `canvas`.
 
-Referência do modelo base usado neste repositório (origem do `best.pt`): https://www.kaggle.com/code/cubeai/facemask-detection-with-yolov8/output
+Referência do procedimento usado para gerar o `best.pt`: notebook do Kaggle (procedimento). Importante: o dataset utilizado neste projeto foi obtido e exportado a partir do Roboflow: https://universe.roboflow.com/facemaskdetection-zvlot/face-mask-y1vsd . Notebook (procedimento): https://www.kaggle.com/code/cubeai/facemask-detection-with-yolov8/output
 
-> Observação: verifique a licença e metadados do modelo no Kaggle antes de redistribuir o peso.
+> Observação: verifique a licença e metadados do dataset no Roboflow e a licença do notebook/modelo antes de redistribuir pesos.
 
 ## Arquitetura e fluxo de dados
 
@@ -103,7 +103,7 @@ Registre metadados do artefato (`sha256` do peso, dataset usado, splits, hiperpa
 
 ## Observações finais sobre o modelo utilizado
 
-- O `best.pt` usado foi obtido a partir do link no Kaggle citado acima; confirme licença e atribuições antes do reuso.
+- O `best.pt` usado neste repositório foi gerado seguindo o notebook do Kaggle, mas treinado com o dataset exportado do Roboflow (veja: https://universe.roboflow.com/facemaskdetection-zvlot/face-mask-y1vsd). Confirme licença e atribuições do dataset e do modelo antes do reuso.
 - Mantenha versionamento claro para modelos (`best_v1.pt`, `best_v2.pt`) e changelog associado.
 
 ---
@@ -113,6 +113,8 @@ Referências e arquivos úteis:
 - Código do servidor: `backend/main.py`
 - Frontend: `frontend/index.html`
 - Dependências: `backend/requirements.txt`
+
+- Exemplar do notebook usado neste projeto: [notebooks/mask-detection-notebook.ipynb](notebooks/mask-detection-notebook.ipynb)
 
 ---
 
