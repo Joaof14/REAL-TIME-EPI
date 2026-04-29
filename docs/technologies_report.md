@@ -116,9 +116,3 @@ Referências e arquivos úteis:
 
 - Exemplar do notebook usado neste projeto: [notebooks/mask-detection-notebook.ipynb](notebooks/mask-detection-notebook.ipynb)
 
----
-
-Se desejar, posso:
-- Adicionar benchmarks (CPU vs GPU) automatizados;
-- Gerar um `Dockerfile` e `docker-compose.yml` de exemplo;
-- Incluir um `docs/kaggle_model_reference.md` com metadados do `best.pt`.
