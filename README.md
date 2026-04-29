@@ -65,3 +65,7 @@ Considere consultar `docs/tech-report.md` para detalhes sobre versões de biblio
 
 ---
  Um exemplar do notebook usado para treinar/gerar `best.pt` (ajustado para o dataset exportado do Roboflow) pode ser encontrado em [notebooks/mask-detection-notebook.ipynb](notebooks/mask-detection-notebook.ipynb).
+
+## Licença
+
+Este projeto está licenciado sob a MIT License — veja o arquivo `LICENSE` na raiz do repositório para o texto completo.
